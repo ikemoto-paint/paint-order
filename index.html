@@ -1073,19 +1073,33 @@ function confirmOrder() {
     .filter(e => e)
     .join(',');
   if(emails){
-    // 非表示リンクを生成してクリック＝iPhone Safariで最も確実にメールアプリが起動する
     const mailtoUrl = `mailto:${emails}?subject=${subject}&body=${body}`;
-    const a = document.createElement('a');
-    a.href = mailtoUrl;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { if(a.parentNode) a.parentNode.removeChild(a); }, 1000);
+    // ホーム画面に追加したアイコン(standalone)かどうかを判定
+    const isStandalone = window.navigator.standalone === true
+      || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    // 履歴保存などを先に済ませてからメールを開く（standaloneでは画面遷移で処理が中断するため）
+    finishOrderRecord();
+    if(isStandalone){
+      // ホーム画面モードでは location.href の方がメールアプリに切り替わりやすい
+      setTimeout(() => { window.location.href = mailtoUrl; }, 50);
+    } else {
+      // 通常のSafari等では非表示リンクのクリックが最も確実
+      const a = document.createElement('a');
+      a.href = mailtoUrl;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { if(a.parentNode) a.parentNode.removeChild(a); }, 1000);
+    }
+    return;
   } else {
     showToast('発注先のメールアドレスが設定されていません');
     return;
   }
-  // 履歴に記録
+}
+
+// 発注内容を履歴・カタログに記録し、カートを空にする（メール起動の前に呼ぶ）
+function finishOrderRecord() {
   const now=new Date();
   const dateStr=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
   history.unshift({
