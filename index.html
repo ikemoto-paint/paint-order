@@ -1073,8 +1073,14 @@ function confirmOrder() {
     .filter(e => e)
     .join(',');
   if(emails){
-    // スマホ(Safari)では location.href が確実。window.open は起動しないことがある
-    location.href = `mailto:${emails}?subject=${subject}&body=${body}`;
+    // 非表示リンクを生成してクリック＝iPhone Safariで最も確実にメールアプリが起動する
+    const mailtoUrl = `mailto:${emails}?subject=${subject}&body=${body}`;
+    const a = document.createElement('a');
+    a.href = mailtoUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { if(a.parentNode) a.parentNode.removeChild(a); }, 1000);
   } else {
     showToast('発注先のメールアドレスが設定されていません');
     return;
