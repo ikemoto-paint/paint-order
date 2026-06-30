@@ -522,7 +522,7 @@ let catalog = [
   {name:'ニッペ 水性ケンエース', color:'ホワイト', size:'丸缶', count:0},
   {name:'ニッペ 水性ケンエース', color:'クリーム', size:'丸缶', count:0},
 ];
-let suppliers = [{ name:'成宮松葉', email:'narumiya-matsuba@mbox.kyoto.inet.or.jp' }];
+let suppliers = [{ name:'成宮松葉', email:'narumiya-matsuba@mbox.kyoto-inet.or.jp' }];
 let settings  = { myname:'株式会社イケモト', subject:'塗料発注のご依頼', staff:'', sizes:['一斗缶','丸缶','ガロン缶','最小缶','セット'] };
 let cart      = [];
 let history   = []; // 全担当者分まとめて保存
@@ -1063,13 +1063,22 @@ function closeOrderConfirm() {
 }
 
 function confirmOrder() {
-  // メールソフトを起動（各発注先に0.6秒間隔で）
+  // メールソフトを起動
   const subject = encodeURIComponent(settings.subject||'塗料発注のご依頼');
   const body    = encodeURIComponent(buildMailBody());
-  selectedSuppliers.forEach((i, idx) => {
-    const email = encodeURIComponent(suppliers[i].email);
-    setTimeout(() => { window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank'); }, idx * 600);
-  });
+  // 宛先はエンコードしない（@が%40になると宛先を認識できない端末がある）
+  // 複数の発注先はカンマ区切りで1通にまとめる
+  const emails = selectedSuppliers
+    .map(i => (suppliers[i].email||'').trim())
+    .filter(e => e)
+    .join(',');
+  if(emails){
+    // スマホ(Safari)では location.href が確実。window.open は起動しないことがある
+    location.href = `mailto:${emails}?subject=${subject}&body=${body}`;
+  } else {
+    showToast('発注先のメールアドレスが設定されていません');
+    return;
+  }
   // 履歴に記録
   const now=new Date();
   const dateStr=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
