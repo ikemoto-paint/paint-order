@@ -176,6 +176,8 @@ body { font-family: -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
 .supplier-list-item:last-child { border-bottom: none; }
 .supplier-icon { width: 36px; height: 36px; border-radius: 10px; background: #E8F0FE; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #1a73e8; flex-shrink: 0; }
 .supplier-del { background: none; border: none; color: #FF3B30; font-size: 20px; cursor: pointer; padding: 4px; margin-left: auto; }
+.supplier-edit { background: none; border: none; color: #1a73e8; font-size: 19px; cursor: pointer; padding: 4px; margin-left: auto; }
+.supplier-edit + .supplier-del { margin-left: 0; }
 .settings-input { width: 100%; padding: 11px 12px; border: 0.5px solid #C6C6C8; border-radius: 8px; font-size: 14px; background: #F9F9F9; color: #000; outline: none; }
 .settings-input:focus { border-color: #1a73e8; background: #fff; }
 .add-btn { width: 100%; padding: 13px; background: #1a73e8; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px; }
@@ -1064,7 +1066,19 @@ function closeOrderConfirm() {
 
 function confirmOrder() {
   // メールソフトを起動
-  const subject = encodeURIComponent(settings.subject||'塗料発注のご依頼');
+  // カート内容に応じて件名を自動で切り替える
+  const hasSample = cart.some(it => it.isSample);
+  const hasPaint  = cart.some(it => !it.isSample);
+  const baseSubject = settings.subject || '塗料発注のご依頼';
+  let subjectText;
+  if(hasSample && !hasPaint){
+    subjectText = '見本板作成のご依頼';        // 見本板のみ
+  } else if(hasSample && hasPaint){
+    subjectText = baseSubject + '・見本板作成のご依頼'; // 混在
+  } else {
+    subjectText = baseSubject;                  // 塗料のみ（通常）
+  }
+  const subject = encodeURIComponent(subjectText);
   const body    = encodeURIComponent(buildMailBody());
   // 宛先はエンコードしない（@が%40になると宛先を認識できない端末がある）
   // 複数の発注先はカンマ区切りで1通にまとめる
@@ -1307,8 +1321,23 @@ function renderSettingsPage() {
         <div style="font-size:14px;font-weight:600;color:#000;">${s.name}</div>
         <div style="font-size:11px;color:#8E8E93;word-break:break-all;">${s.email}</div>
       </div>
+      <button class="supplier-edit" onclick="editSupplierName(${i})" aria-label="宛名を編集"><i class="ti ti-pencil"></i></button>
       <button class="supplier-del" onclick="deleteSupplier(${i})" aria-label="削除"><i class="ti ti-trash"></i></button>
     </div>`).join('');
+}
+
+// 発注先の「宛名（名称）」だけを編集する
+function editSupplierName(i) {
+  const current = suppliers[i].name || '';
+  const next = prompt('宛名（発注先の名称）を入力してください', current);
+  if(next === null) return;          // キャンセル
+  const name = next.trim();
+  if(!name){ showToast('宛名を入力してください'); return; }
+  suppliers[i].name = name;
+  saveData();
+  renderSettingsPage();
+  renderSupplierChecks();
+  showToast('宛名を変更しました ✓');
 }
 // ========== サイズリスト管理 ==========
 function getSizes() {
