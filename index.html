@@ -885,7 +885,10 @@ function addAllItemsToCart() {
   showToast(`${added}品目をカートに追加しました ✓`+(genba?`（${genba}）`:''));
 }
 function pushToCart(item) {
-  const ex=cart.find(c=>c.name===item.name&&c.color===item.color&&c.size===item.size);
+  // 現場名（memo）が違うものは、同じ塗料でも別品目として扱う
+  // ※まとめてしまうと現場別の材料費が正しく集計できないため
+  const ex=cart.find(c=>c.name===item.name&&c.color===item.color&&c.size===item.size
+                        &&(c.memo||'')===(item.memo||'')&&!!c.isSample===!!item.isSample);
   if(ex) ex.qty+=item.qty; else cart.push({...item});
   updateBadge();
 }
@@ -1392,8 +1395,7 @@ function toggleMemoGroup(gi) {
 
 function reorderAll(realIdx) {
   history[realIdx].items.forEach(item=>{
-    const ex=cart.find(c=>c.name===item.name&&c.color===item.color&&c.size===item.size);
-    if(ex) ex.qty+=item.qty; else cart.push({...item});
+    pushToCart({...item});
   });
   updateBadge(); showToast('カートに追加しました ✓'); switchTab('cart');
 }
