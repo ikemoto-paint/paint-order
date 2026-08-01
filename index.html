@@ -6,7 +6,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="塗料発注">
 <title>塗料発注アプリ｜株式会社イケモト</title>
-<link rel="apple-touch-icon" href="icon2-180.png">
 <style>
 /* Tablerアイコンをアプリに内蔵（CDN不要・オフラインでも表示） */
 .ti { display:inline-block; width:1em; height:1em; vertical-align:-0.125em; pointer-events:none;
@@ -571,6 +570,12 @@ function swatchColor(c){ return COLORS[c]||'#C8C8C6'; }
 // ========== ストレージキー ==========
 // 担当者ごとに履歴を分けるため、staffキーごとに別のlocalStorageキーを使う
 // ただし catalog/suppliers/settings はPC共通（同じキー）
+/* ============================================================
+   発注ログ送信先（Googleスプレッドシート／GAS）
+   ※ 変更する場合はここだけを差し替えてください
+   ============================================================ */
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyXnspAKN3zNxnaugMrOuXq1wBOJ8ulCaIoinvVVYpJWNedM5TTbTznaq0MX6iqWZxDTQ/exec";
+
 const KEY_CATALOG   = 'paint_catalog';
 const KEY_SUPPLIERS = 'paint_suppliers';
 const KEY_SETTINGS  = 'paint_settings';
@@ -1174,8 +1179,57 @@ function confirmOrder() {
   }
 }
 
+/* ============================================================
+   発注ログをスプレッドシートへ送信
+   メール起動で画面が切り替わっても送り届くよう sendBeacon を使う
+   ============================================================ */
+function sendOrderToSheet() {
+  if(!GAS_URL || GAS_URL.indexOf('script.google.com') === -1) return;
+  if(!cart.length) return;
+
+  const now = new Date();
+  const p2  = n => String(n).padStart(2,'0');
+  const ymd = `${now.getFullYear()}/${p2(now.getMonth()+1)}/${p2(now.getDate())}`;
+  const stamp = `${now.getFullYear()}${p2(now.getMonth()+1)}${p2(now.getDate())}`
+              + `-${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}`;
+
+  const payload = {
+    orderNo:   stamp,
+    sentAt:    `${ymd} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`,
+    orderDate: ymd,
+    staff:     settings.staff || '',
+    suppliers: selectedSuppliers.map(i => (suppliers[i] && suppliers[i].name) || '').filter(Boolean).join('、'),
+    items: cart.map(it => ({
+      site:    it.memo    || '',
+      kind:    it.isSample ? '見本板' : '塗料',
+      name:    it.name    || '',
+      color:   it.color   || '',
+      size:    it.size    || '',
+      qty:     Number(it.qty) || 0,
+      comment: it.comment || ''
+    }))
+  };
+
+  const json = JSON.stringify(payload);
+  try{
+    if(navigator.sendBeacon){
+      const blob = new Blob([json], {type:'text/plain;charset=utf-8'});
+      navigator.sendBeacon(GAS_URL, blob);
+    }else{
+      fetch(GAS_URL, {
+        method:'POST', mode:'no-cors', keepalive:true,
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: json
+      }).catch(()=>{});
+    }
+  }catch(err){
+    // 送信に失敗しても発注メールは通常どおり送れるようにする
+  }
+}
+
 // 発注内容を履歴・カタログに記録し、カートを空にする（メール起動の前に呼ぶ）
 function finishOrderRecord() {
+  sendOrderToSheet();   // ← カートを空にする前にスプレッドシートへ送信
   const now=new Date();
   const dateStr=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
   history.unshift({
